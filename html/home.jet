@@ -5,9 +5,14 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Home</title>
+    <link rel="shortcut icon"
+          href="/static/image/chat.png">
+    <title>JoGroup</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
           integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/notie/4.3.1/notie.css"
+          integrity="sha512-7DgarsuahzxiOonlZeYgjXuPFVEDIylPzzlmANJdccCIO0H7ofXKbAKf0FWCkh8NkCFswe3Hpj6HegSTYH6SJQ=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"/>
     <style>
         .chatbox {
             outline: 1px solid silver;
@@ -29,8 +34,8 @@
             <h3>
                 聊天
             </h3>
-            <p><a href="https://github.com/Koopa0/ws">Go to Github</a></p>
-            <div class="form-group">
+            <a href="https://github.com/Koopa0/ws" class="btn btn-outline-secondary">Go to Github</a>
+            <div class="form-group mt-3">
                 <label for="username">Username:</label>
                 <input type="text" name="username" id="username" class="form-control" autocomplete="off">
             </div>
@@ -39,11 +44,17 @@
                 <input type="text" name="message" id="message" class="form-control" autocomplete="off">
             </div>
 
-            <input type="hidden" name="action" id="action">
-
             <hr>
 
-            <div id="output" class="chatbox">
+            <a href="javascript:void(0);" class="btn btn-outline-secondary" id="sendBtn">Send Message</a>
+
+            <input type="hidden" name="action" id="action">
+
+            <div id="status" class="mt-2 float-end">
+
+            </div>
+
+            <div id="output" class="chatbox mt-3">
 
             </div>
         </div>
@@ -62,10 +73,17 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
         crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/notie/4.3.1/notie.min.js"
+        integrity="sha512-NHRCwRf2LnVSlLDejCA9oS3fG3/FLSQIPCjAWl3M7tVi5wszwr6FxkjotWnQDXLE+aLKcxRrzFDNEgXj9nvkPw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="/static/js/reconnecting-websocket.min.js"></script>
 <script>
     let socket = null;
+    let output = document.getElementById("output")
+    let userField = document.getElementById("username")
+    let messageField = document.getElementById("message")
 
-    window.onbeforeunload = function (){
+    window.onbeforeunload = function () {
         console.log("Leaving");
         let jsonData = {};
         jsonData["action"] = "left"
@@ -73,18 +91,25 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        socket = new WebSocket("ws://localhost:8080/ws");
+        socket = new ReconnectingWebSocket("ws://localhost:8080/ws", null, {debug: true, reconnectInterval: 3000});
+
+        const offline = `<span class="badge bg-danger">Not connected</span>`
+        const online = `<span class="badge bg-success">Connected</span>`
+        let statusDiv = document.getElementById("status");
 
         socket.onopen = () => {
             console.log("Successfully connected!")
+            statusDiv.innerHTML = online
         }
 
         socket.onclose = () => {
             console.log("connection close!")
+            statusDiv.innerHTML = offline
         }
 
         socket.onerror = error => {
             console.log("socket error!")
+            statusDiv.innerHTML = offline
         }
 
         socket.onmessage = msg => {
@@ -103,18 +128,63 @@
                             ul.appendChild(li)
                         })
                     }
+                    break;
 
+                case "broadcast":
+                    output.innerHTML = output.innerHTML + data.message + "<br>"
                     break;
             }
         }
 
-        let userInput = document.getElementById("username");
-        userInput.addEventListener("change", function () {
+        userField.addEventListener("change", function () {
             let jsonData = {};
             jsonData["action"] = "username"
             jsonData["username"] = this.value;
             socket.send(JSON.stringify(jsonData))
         })
+
+        messageField.addEventListener("keydown", function (event) {
+            if (event.code === "Enter") {
+                if (!socket) {
+                    console.log("no connection!");
+                    return false
+                }
+
+                if ((userField.value === "") || (messageField.value === "")) {
+                    errorMessage("輸入使用者名稱和訊息")
+                    return false;
+                } else {
+                    sendMessage()
+                }
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        })
+
+        document.getElementById("sendBtn").addEventListener("click", function () {
+            if ((userField.value === "") || (messageField.value === "")) {
+                errorMessage("輸入使用者名稱和訊息")
+                return false;
+            } else {
+                sendMessage()
+            }
+        })
     })
+
+    function sendMessage() {
+        let jsonData = {};
+        jsonData["action"] = "broadcast";
+        jsonData["username"] = userField.value;
+        jsonData["message"] = messageField.value;
+        socket.send(JSON.stringify(jsonData))
+        messageField.value = "";
+    }
+
+    function errorMessage(msg) {
+        notie.alert({
+            type: 'error',
+            text: msg,
+        })
+    }
 </script>
 </html>

@@ -9,8 +9,11 @@ import (
 func routes() http.Handler {
 	mux := chi.NewRouter()
 
-	mux.Get("/home", handlers.Home)
+	mux.Get("/chat", handlers.Home)
 	mux.Get("/ws", handlers.WsEndpoint)
+
+	fileServer := http.FileServer(http.Dir("./static/"))
+	mux.Handle("/static/*", http.StripPrefix("/static", fileServer))
 
 	return mux
 }
